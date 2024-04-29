@@ -3,12 +3,27 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SH110X.h>
 
+#include <DS3231.h>
 
-#define i2c_Address 0x3c // Initialize with the I2C addr 0x3C, Typically eBay OLED's
 
-#define SCREEN_WIDTH 128   // OLED display width, in pixels
-#define SCREEN_HEIGHT 64   // OLED display height, in pixels
-#define OLED_RESET -1      // QT-PY / XIAO
+DS3231 clocks;
+RTCDateTime dt;
+
+#define i2c_Address 0x3c  // Initialize with the I2C addr 0x3C,
+
+#define SCREEN_WIDTH 128  // OLED display width, in pixels
+#define SCREEN_HEIGHT 64  // OLED display height, in pixels
+#define OLED_RESET -1     // QT-PY / XIAO
+
+#define upButton D3
+#define downButton D4
+#define enterButton D5
+#define backButton D6
+
+unsigned long lastButtonPressTime = 0;
+const unsigned long buttonPressInterval = 200;
+
+
 Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 
@@ -18,15 +33,20 @@ int entered = -1;
 void setup() {
   Serial.begin(9600);
 
-  display.begin(i2c_Address, true); // Address 0x3C default
-  display.clearDisplay();                    // Clear the display
-  display.setTextSize(1);                    // Set text size
-  display.setTextColor(SH110X_WHITE);               // Set text color
+  clocks.begin();
+  clocks.setDateTime(__DATE__, __TIME__);
+  // Initialize DS3231
+  Serial.print("Initializing DS3231");
+
+  display.begin(i2c_Address, true);    // Address 0x3C default
+  display.clearDisplay();              // Clear the display
+  display.setTextSize(1);              // Set text size
+  display.setTextColor(SH110X_WHITE);  // Set text color
   ;
-  pinMode(D3, INPUT_PULLUP);
-  pinMode(D4, INPUT_PULLUP);
-  pinMode(D5, INPUT_PULLUP);
-  pinMode(D6, INPUT_PULLUP);
+  pinMode(upButton, INPUT_PULLUP);
+  pinMode(downButton, INPUT_PULLUP);
+  pinMode(enterButton, INPUT_PULLUP);
+  pinMode(backButton, INPUT_PULLUP);
 
   int selectButtonState;
 
@@ -40,12 +60,13 @@ void setup() {
     display.println("VOLTAGE, CURRENT, AND");
     display.setCursor(18, 24);
     display.println("POWER MONITORING");
-    display.display();  // Show the display buffer on the hardware
+    display.display();       // Show the display buffer on the hardware
     display.clearDisplay();  // Clear the display before moving to time display
     if (selectButtonState == LOW) {
       break;
     }
   }
+  delay(200);
 }
 
 void loop() {
@@ -54,21 +75,24 @@ void loop() {
 
 void displaymenu(void) {
 
+  int down = digitalRead(upButton);
+  int up = digitalRead(downButton);
+  int enter = digitalRead(enterButton);
+  int back = digitalRead(backButton);
 
-  int down = digitalRead(D3);
-  int up = digitalRead(D4);
-  int enter = digitalRead(D5);
-  int back = digitalRead(D6);
 
+  unsigned long currentMillis = millis();
 
-  if (up == LOW) {
-    selected = (selected + 1) % 3; // Wrap around to 0 after reaching the last option
-    delay(200);
-  }
+  if (currentMillis - lastButtonPressTime >= buttonPressInterval) {
+    if (up == LOW) {
+      selected = (selected + 1) % 3;  // Wrap around to 0 after reaching the last option
+      lastButtonPressTime = currentMillis;
+    }
 
-  if (down == LOW) {
-    selected = (selected - 1 + 3) % 3; // Ensure positive index, wrap around to 2 if negative
-    delay(200);
+    if (down == LOW) {
+      selected = (selected - 1 + 3) % 3;  // Ensure positive index, wrap around to 2 if negative
+      lastButtonPressTime = currentMillis;
+    }
   }
 
   if (enter == LOW) {
@@ -79,18 +103,20 @@ void displaymenu(void) {
     entered = -1;
   };
 
-    const char *options[3] = {
+  const char *options[3] = {
     " Monitor ",
     " Timer ",
     " Schedule ",
   };
+
   if (entered == -1) {
     display.clearDisplay();
-    display.setTextSize(1);
+    display.setTextSize(2);
     display.setTextColor(SH110X_WHITE);
-    display.setCursor(0, 0);
+    display.setCursor(0, 10);
     display.println(F("Menu"));
-    display.println("");
+    display.setTextSize(1);
+
     for (int i = 0; i < 3; i++) {
       if (i == selected) {
         display.setTextColor(SH110X_BLACK, SH110X_WHITE);
@@ -100,28 +126,34 @@ void displaymenu(void) {
         display.println(options[i]);
       }
     }
-  }
-
-  else if (entered == 0) {
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SH110X_WHITE);
-    display.setCursor(0, 0);
-    display.println("0");
+  } else if (entered == 0) {
+    timeDisplay();
   } else if (entered == 1) {
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SH110X_WHITE);
     display.setCursor(0, 0);
     display.println("1");
-  }
-  else if (entered == 2) {
+  } else if (entered == 2) {
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SH110X_WHITE);
     display.setCursor(0, 0);
     display.println("2");
-  } 
+  }
+  display.display();
+}
+
+void timeDisplay() {
+
+  dt = clocks.getDateTime();
+  Serial.println(clocks.dateFormat("d S Y H:i:sa", dt));
+
+  display.setTextColor(SH110X_WHITE);
+  // Clear the display before updating
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.print(clocks.dateFormat("d S Y H:i:sa", dt));
   display.display();
 
 }
