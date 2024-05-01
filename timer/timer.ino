@@ -68,7 +68,7 @@ void timeSet(int select) {
   const char *options[3] = {
     " hh ",
     " mm ",
-    " ss ",
+    " ss ", 
   };
 
   int optionWidth = 30;                                 // Adjust the width of each option based on your preference
@@ -83,6 +83,8 @@ void timeSet(int select) {
     display.setTextSize(1);
     display.setCursor(startX + (optionWidth * i), 40);  // Adjust the y-coordinate as needed
     display.print(options[i]);
+
+    
     if (i < 2) {
       display.print(":");
     }
@@ -149,5 +151,4 @@ void loadSelection() {
   }
   display.display();
 }
-
 

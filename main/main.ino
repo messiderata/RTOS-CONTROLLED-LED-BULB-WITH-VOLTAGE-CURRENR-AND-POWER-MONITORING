@@ -3,22 +3,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SH110X.h>
 #include <DS3231.h>
-#include "Countimer.h"
 #include <EEPROM.h>
-
-Countimer tdown;
-
-DS3231 clocks;
-RTCDateTime dt;
-
-int time_s = 0;
-int time_m = 0;
-int time_h = 0;
-
-int set = 0;
-int flag1 = 0, flag2 = 0;
-
-int led = 5;
 
 #define i2c_Address 0x3c  // Initialize with the I2C addr 0x3C,
 #define SCREEN_WIDTH 128  // OLED display width, in pixels
@@ -30,12 +15,22 @@ int led = 5;
 #define enterButton D5
 #define backButton D6
 
+#define potentiometer A0
+#define enterButton D5
+
+DS3231 clocks;
+RTCDateTime dt;
+
 unsigned long lastButtonPressTime = 0;
 const unsigned long buttonPressInterval = 200;
-
+bool buttonPressed = false;
 
 Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+int selectedRelay = 0;
+int relayState[4] = {LOW, LOW, LOW, LOW}; // Assuming 4 relays connected
+int relayPins[4] = {2, 3, 5 , 4}; // Assuming 4 digital pins connected to the relays
+int lastSavedState[4]; // Store the last saved state of relays
 
 int selected = 0;
 int entered = -1;
@@ -57,6 +52,25 @@ void setup() {
   pinMode(downButton, INPUT_PULLUP);
   pinMode(enterButton, INPUT_PULLUP);
   pinMode(backButton, INPUT_PULLUP);
+
+   pinMode(enterButton, INPUT_PULLUP);
+
+  // Set all relay pins as OUTPUT
+  for (int i = 0; i < 4; i++) {
+    pinMode(relayPins[i], OUTPUT);
+  }
+
+  // Display initial text at the top left corner
+  display.setCursor(0, 0);
+  display.println("Relay Control");
+  display.display();
+
+  // Read relay states from EEPROM during setup
+  for (int i = 0; i < 4; i++) {
+    lastSavedState[i] = EEPROM.read(i); // Read from EEPROM
+    relayState[i] = lastSavedState[i]; // Set relay state to last saved state
+    digitalWrite(relayPins[i], relayState[i]); // Set relay state
+  }
 
   int selectButtonState;
 
@@ -110,7 +124,7 @@ void loop() {
   const char *options[3] = {
     " Monitor ",
     " Timer ",
-    " Schedule ",
+    " Manual ",
   };
 
   if (entered == -1) {
@@ -130,17 +144,15 @@ void loop() {
         display.println(options[i]);
       }
     }
+
+    
   } else if (entered == 0 || currentMillis % 10000 == 0) {  // Update time every 10 seconds
     timeDisplay();
   } else if (entered == 1) {
  
 
   } else if (entered == 2) {
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SH110X_WHITE);
-    display.setCursor(0, 0);
-    display.println("2");
+
   }
   display.display();
 }
@@ -157,5 +169,7 @@ void timeDisplay() {
   display.print(clocks.dateFormat("d M y, h:ia", dt));
   display.display();
 }
+
+
 
 
