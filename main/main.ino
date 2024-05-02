@@ -11,24 +11,16 @@ Countimer tdown;
 DS3231 clocks;
 RTCDateTime dt;
 
-int time_s = 0;
-int time_m = 0;
-int time_h = 0;
-
-int set = 0;
-int flag1 = 0, flag2 = 0;
-
-int led = 5;
 
 #define i2c_Address 0x3c  // Initialize with the I2C addr 0x3C,
 #define SCREEN_WIDTH 128  // OLED display width, in pixels
 #define SCREEN_HEIGHT 64  // OLED display height, in pixels
 #define OLED_RESET -1     // QT-PY / XIAO
 
-#define upButton D3
-#define downButton D4
-#define enterButton D5
-#define backButton D6
+#define upButton 17
+#define downButton 4
+#define enterButton 18
+#define backButton 19
 
 unsigned long lastButtonPressTime = 0;
 const unsigned long buttonPressInterval = 200;
@@ -61,7 +53,7 @@ void setup() {
   int selectButtonState;
 
   while (true) {
-    selectButtonState = digitalRead(D5);
+    selectButtonState = digitalRead(enterButton);
     display.setCursor(20, 0);
     display.println("RTOS-CONTROLLED");
     display.setCursor(25, 8);
@@ -76,10 +68,12 @@ void setup() {
       break;
     }
   }
-  delay(200);
+  delay(350);
 }
 
 void loop() {
+  dt = clocks.getDateTime();
+  
   int down = digitalRead(upButton);
   int up = digitalRead(downButton);
   int enter = digitalRead(enterButton);
@@ -131,11 +125,11 @@ void loop() {
       }
     }
 
-    
-  } else if (entered == 0 || currentMillis % 10000 == 0) {  // Update time every 10 seconds
+
+  } else if (entered == 0) {  // Update time every 10 seconds
     timeDisplay();
   } else if (entered == 1) {
- 
+
 
   } else if (entered == 2) {
     display.clearDisplay();
@@ -149,8 +143,7 @@ void loop() {
 
 
 void timeDisplay() {
-
-  dt = clocks.getDateTime();
+  
   Serial.println(clocks.dateFormat("d M y, h:ia", dt));
   display.setTextColor(SH110X_WHITE);
   // Clear the display before updating
@@ -159,5 +152,3 @@ void timeDisplay() {
   display.print(clocks.dateFormat("d M y, h:ia", dt));
   display.display();
 }
-
-
