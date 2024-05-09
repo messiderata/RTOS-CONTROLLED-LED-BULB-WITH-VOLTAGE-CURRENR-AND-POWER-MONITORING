@@ -2,17 +2,24 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SH110X.h>
 
+
+int H = 0;
+int h = 0;
+
+int mm = 0;
+int ss = 0;
+
 #define i2c_Address 0x3c
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define OLED_RESET -1
 
-#define upButton D3
-#define downButton D4
-#define enterButton D5
-#define backButton D6
+#define upButton 17
+#define downButton 4
+#define enterButton 18
+#define backButton 19
 
-const int potPin = A0;
+const int potPin = 15;
 
 unsigned long lastPotReadTime = 0;  // Last time the potentiometer was read
 const unsigned long potReadInterval = 100;
@@ -48,7 +55,7 @@ void loop() {
 
   if (currentMillis - lastPotReadTime >= potReadInterval) {
     int potValue = analogRead(potPin);
-    selected = map(potValue, 0, 1023, 0, 2);
+    selected = map(potValue, 0, 4095, 0, 2);
 
     lastPotReadTime = currentMillis;
   }
@@ -81,13 +88,18 @@ void timeSet(int select) {
       display.setTextColor(SH110X_WHITE);
     }
     display.setTextSize(1);
-    display.setCursor(startX + (optionWidth * i), 40);  // Adjust the y-coordinate as needed
+    display.setCursor(startX + (optionWidth * i), 30);  // Adjust the y-coordinate as needed
     display.print(options[i]);
-
-    
     if (i < 2) {
       display.print(":");
     }
+
+    display.setTextColor(SH110X_WHITE);
+    display.setCursor(24,40);  // Adjust the y-coordinate as needed
+    display.print(H);
+    display.setCursor(30,40);  // Adjust the y-coordinate as needed
+    display.print(h);
+
   }
 
   display.display();

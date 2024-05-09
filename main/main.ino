@@ -21,14 +21,14 @@ RTCDateTime dt;
 #define potentiometer 15
 
 unsigned long lastButtonPressTime = 0;
-const unsigned long buttonPressInterval = 250;
+const unsigned long buttonPressInterval = 150;
 bool buttonPressed = false;
 
 Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 int selected = 0;
 int entered = -1;
-int lastSelectedRelay = 0; // Add a variable to store the last selected relay
+int lastSelectedRelay = 0;  // Add a variable to store the last selected relay
 
 int selectedRelay = 0;
 int relayState[4] = { LOW, LOW, LOW, LOW };  // Assuming 4 relays connected
@@ -85,7 +85,7 @@ void setup() {
 
 void loop() {
   dt = clocks.getDateTime();
-  
+
   int down = digitalRead(upButton);
   int up = digitalRead(downButton);
   int enter = digitalRead(enterButton);
@@ -126,6 +126,7 @@ void loop() {
     display.setCursor(0, 12);
     display.println(F("Menu"));
     display.setTextSize(1);
+    display.drawLine(0, 9, 128, 9, SH110X_WHITE);
 
     for (int i = 0; i < 3; i++) {
       if (i == selected) {
@@ -141,7 +142,7 @@ void loop() {
   } else if (entered == 1) {
     // Add code for Timer option here
   } else if (entered == 2) {
-    relayControl(); // Continuous relay control even outside manual control section
+    relayControl();  // Continuous relay control even outside manual control section
   }
   display.display();
 }
@@ -160,13 +161,13 @@ void timeDisplay() {
 void toggleRelay(int relay) {
   if (relay >= 0 && relay < 4) {
     relayState[relay] = !relayState[relay];
-    
+
     // Write to EEPROM immediately after toggling the relay state
-    lastSavedState[relay] = relayState[relay]; // Update last saved state
-    EEPROM.write(relay, relayState[relay]); // Write to EEPROM
-    EEPROM.commit(); // Commit changes to EEPROM
-    
-    digitalWrite(relayPins[relay], relayState[relay]); // Set relay state
+    lastSavedState[relay] = relayState[relay];  // Update last saved state
+    EEPROM.write(relay, relayState[relay]);     // Write to EEPROM
+    EEPROM.commit();                            // Commit changes to EEPROM
+
+    digitalWrite(relayPins[relay], relayState[relay]);  // Set relay state
   }
 }
 
@@ -191,9 +192,9 @@ void relayControl() {
   }
 
   int potValue = analogRead(potentiometer);
-  int newSelectedRelay = map(potValue, 0, 1023, 0, 3); // Map potentiometer value to selected relay index
-  
-  if (entered == 2) { // Only update selectedRelay if in the manual control section
+  int newSelectedRelay = map(potValue, 0, 1023, 0, 3);  // Map potentiometer value to selected relay index
+
+  if (entered == 2) {  // Only update selectedRelay if in the manual control section
     selectedRelay = newSelectedRelay;
   }
 
