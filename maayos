@@ -1,11 +1,13 @@
 #include <Arduino.h>
+#include <Wire.h>
 #include <Button.h>
 #include "U8g2lib.h"
 #include "RTClib.h"
+#include <Adafruit_INA219.h>
 
 RTC_DS3231 rtc;
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0);
-
+Adafruit_INA219 ina219;
 
 // ' icon_manual', 16x16px
 const unsigned char epd_bitmap__icon_ina[] PROGMEM = {
@@ -147,6 +149,14 @@ const unsigned char epd_bitmap_border[] PROGMEM = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
+const unsigned char epd_bitmap_off[] PROGMEM = {
+  0xf8, 0xf8, 0xf8, 0xf8, 0xf8
+};
+
+const unsigned char epd_bitmap_on[] PROGMEM = {
+  0xf8, 0xf8, 0xf8, 0xf8, 0xf8
+};
+
 
 const unsigned char epd_bitmap__lamp[] PROGMEM = {
   0x03, 0xc0, 0x0f, 0xf0, 0x18, 0x18, 0x30, 0x0c, 0x68, 0x16, 0x44, 0x22, 0xc2, 0x43, 0xc1, 0x83,
@@ -184,7 +194,9 @@ const char *lamp_menu_items[LAMP_NUM_ITEMS] = {
   "LAMP 3"
 };
 
-const iny relayPin[]= {}
+const int relayPin[] = { 13, 12, 14, 27 };
+const int switchPin[] = { 26, 25, 33, 32 };
+const int numberOfButtons = sizeof(switchPin) / sizeof(switchPin[0]);
 
 char daysOfTheWeek[7][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
 
@@ -203,12 +215,20 @@ int count = 0;
 #define SCREEN_BUTTON 5
 
 
+int lampState1 = LOW;
+int lampState2 = LOW;
+int lampState3 = LOW;
+int lampState4 = LOW;
+
 
 Button upButton(UP_BUTTON_PIN);
 Button downButton(DOWN_BUTTON_PIN);
 Button enterButton(ENTER_BUTTON_PIN);
 Button backButton(BACK_BUTTON_PIN);
 Button screenButton(SCREEN_BUTTON);
+
+Button *buttons[numberOfButtons];
+
 
 void setup() {
   // put your setup code here, to run once:
@@ -237,6 +257,30 @@ void setup() {
     // January 21, 2014 at 3am you would call:
     // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
   }
+
+  // while (!Serial) {
+  //   delay(1);
+  // }
+
+  // // Initialize the INA219.
+  // if (!ina219.begin()) {
+  //   Serial.println("Failed to find INA219 chip");
+  //   while (1) {
+  //     delay(10);
+  //   }
+  // }
+  // To use a slightly lower 32V, 1A range (higher precision on amps):
+  //ina219.setCalibration_32V_1A();
+  // Or to use a lower 16V, 400mA range, call:
+  // ina219.setCalibration_16V_400mA();
+
+  // Serial.println("Measuring voltage, current, and power with INA219 ...");
+
+  for (int i = 0; i < numberOfButtons; i++) {
+    buttons[i] = new Button(switchPin[i]);
+    buttons[i]->begin();
+    pinMode(relayPin[i], OUTPUT);  // Initialize the relay pins as outputs
+  }
 }
 
 void loop() {
@@ -263,6 +307,8 @@ void loop() {
   } else if (count > 1) {
     count = 0;
   }
+
+  manualRelayControl();
 }
 
 void handleButtons() {
@@ -337,7 +383,7 @@ void displaySubMenu() {
 
   switch (mainMenuSelection) {
     case 0:
-      // timerDisplay();
+      monitoringDisplay();
       return;  // Exit the function early
     case 1:
       menu = lamp_menu_items;
@@ -428,15 +474,40 @@ void timerDisplay(DateTime now) {
   dtostrf(temperature, 4, 1, tempString);
 
   u8g2.setFont(u8g_font_profont29r);
-  u8g2.drawStr(20, 35, timeString);
+  u8g2.drawStr(20, 33, timeString);
   u8g2.setFont(u8g_font_profont15r);
-  u8g2.drawStr(100, 25, secondString);
+  u8g2.drawStr(100, 23, secondString);
   u8g2.setFont(u8g_font_profont12r);
-  u8g2.drawStr(6, 8, dateString);
+  u8g2.drawStr(12, 8, dateString);
 
+  u8g2.setFont(u8g_font_7x14);
+  u8g2.drawStr(45, 48, tempString);
+  u8g2.drawGlyph(75, 48, 0xB0);  // Display the degree Celsius symbol
+  u8g2.drawStr(83, 48, "C");     // Display the degree Celsius symbol
+  // u8g2.setFont(u8g2_font_open_iconic_all_2x_t);
+  if (lampState1 == HIGH) {
+    u8g2.drawGlyph(40, 63, 0xB0);
+  } else {
+    u8g2.drawStr(40, 63, "-");
+  }
 
-  u8g2.drawStr(48, 50, tempString);
-  u8g2.drawStr(75, 50, "°C");
+  if (lampState2 == HIGH) {
+    u8g2.drawGlyph(55, 63, 0xB0);
+  } else {
+    u8g2.drawStr(55, 63, "-");
+  }
+
+  if (lampState3 == HIGH) {
+    u8g2.drawGlyph(70, 63, 0xB0);
+  } else {
+    u8g2.drawStr(70, 63, "-");
+  }
+
+  if (lampState4 == HIGH) {
+    u8g2.drawGlyph(85, 63, 0xB0);
+  } else {
+    u8g2.drawStr(85, 63, "-");
+  }
 
   u8g2.sendBuffer();
 }
@@ -455,4 +526,77 @@ void dateDisplay(DateTime now, char *buffer, size_t bufferSize) {
            now.day(), now.month(), now.year());
 }
 
+void manualRelayControl() {
+  for (int i = 0; i < numberOfButtons; i++) {
+    if (buttons[i]->pressed()) {
+      digitalWrite(relayPin[i], HIGH);  // Turn on the corresponding relay
+      // Update the corresponding lampState
+      if (i == 0) {
+        lampState1 = HIGH;
+      } else if (i == 1) {
+        lampState2 = HIGH;
+      } else if (i == 2) {
+        lampState3 = HIGH;
+      } else if (i == 3) {
+        lampState4 = HIGH;
+      }
+    }
+    if (buttons[i]->released()) {
+      digitalWrite(relayPin[i], LOW);  // Turn off the corresponding relay
+      // Update the corresponding lampState
+      if (i == 0) {
+        lampState1 = LOW;
+      } else if (i == 1) {
+        lampState2 = LOW;
+      } else if (i == 2) {
+        lampState3 = LOW;
+      } else if (i == 3) {
+        lampState4 = LOW;
+      }
+    }
+  }
+}
 
+
+void monitoringDisplay() {
+  u8g2.clearBuffer();
+  u8g2.drawStr(75, 50, "°C");
+  u8g2.sendBuffer();
+}
+
+// void sensorDisplay() {
+//   float current_mA = 0;
+//   float loadvoltage = 0;
+//   float power_mW = 0;
+//   float shuntvoltage = 0;
+//   float busvoltage = 0;
+
+//   current_mA = ina219.getCurrent_mA();
+//   power_mW = ina219.getPower_mW();
+//   loadvoltage = busvoltage + (shuntvoltage / 1000);
+
+
+//   u8g2.clearBuffer();
+//   u8g2.setFont(u8g_font_5x8r);
+//   u8g2.drawBitmap(0, 0, 128 / 8, 64, epd_bitmap_border);
+//   u8g2.drawStr(13, 17, "Voltage");
+//   u8g2.drawStr(13, 40, "Current");
+//   u8g2.drawStr(85, 17, "Power");
+
+//   char voltageStr[10];
+//   char currentStr[10];
+//   char powerStr[10];
+
+//   dtostrf(loadvoltage, 5, 2, voltageStr);  // Format: 5 characters total with 2
+//   dtostrf(current_mA, 5, 2, currentStr);
+//   dtostrf(power_mW, 5, 2, powerStr);
+
+//   u8g2.drawStr(20, 27, voltageStr);  // Voltage
+//   u8g2.drawStr(20, 50, currentStr);   // Current
+//   u8g2.drawStr(85, 34, powerStr);     // Power
+
+//   u8g2.drawStr(59, 23, "V");   // Voltage
+//   u8g2.drawStr(59, 47, "mA");  // Voltage
+//   u8g2.drawStr(95, 47, "mW");  // Voltage
+//   u8g2.sendBuffer();
+// }
