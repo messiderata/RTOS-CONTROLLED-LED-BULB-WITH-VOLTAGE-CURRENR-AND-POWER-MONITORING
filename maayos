@@ -194,8 +194,8 @@ const char *lamp_menu_items[LAMP_NUM_ITEMS] = {
   "LAMP 3"
 };
 
-const int relayPin[] = { 13, 12, 14, 27 };
-const int switchPin[] = { 26, 25, 33, 32 };
+const int relayPin[] = { 26, 25, 33, 32 };
+const int switchPin[] = { 13, 12, 14, 27 };
 const int numberOfButtons = sizeof(switchPin) / sizeof(switchPin[0]);
 
 char daysOfTheWeek[7][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
@@ -229,6 +229,8 @@ Button screenButton(SCREEN_BUTTON);
 
 Button *buttons[numberOfButtons];
 
+unsigned long previousMillis = 0;
+const int long interval = 500;
 
 void setup() {
   // put your setup code here, to run once:
@@ -248,6 +250,7 @@ void setup() {
     Serial.flush();
     while (1) delay(10);
   }
+
   if (rtc.lostPower()) {
     Serial.println("RTC lost power, let's set the time!");
     // When time needs to be set on a new device, or after a power loss, the
@@ -255,26 +258,24 @@ void setup() {
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
     // This line sets the RTC with an explicit date & time, for example to set
     // January 21, 2014 at 3am you would call:
-    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+    // rtc.adjust(DateTime(2014, 1, 21, 1, 42, 0));
   }
 
-  // while (!Serial) {
-  //   delay(1);
-  // }
+  while (!Serial) {
+    delay(1);
+  }
 
   // // Initialize the INA219.
-  // if (!ina219.begin()) {
-  //   Serial.println("Failed to find INA219 chip");
-  //   while (1) {
-  //     delay(10);
-  //   }
-  // }
-  // To use a slightly lower 32V, 1A range (higher precision on amps):
-  //ina219.setCalibration_32V_1A();
-  // Or to use a lower 16V, 400mA range, call:
-  // ina219.setCalibration_16V_400mA();
+  if (!ina219.begin()) {
+    Serial.println("Failed to find INA219 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  ina219.setCalibration_16V_400mA();
+  Serial.println("Measuring voltage, current, and power with INA219 ...");
+  ina219.begin();
 
-  // Serial.println("Measuring voltage, current, and power with INA219 ...");
 
   for (int i = 0; i < numberOfButtons; i++) {
     buttons[i] = new Button(switchPin[i]);
@@ -291,7 +292,7 @@ void loop() {
     count++;
   }
   if (count == 0) {
-    timerDisplay(now);
+    clockDisplay(now);
 
   } else if (count == 1) {
     if (inLampDisplay) {
@@ -439,37 +440,25 @@ void displayMainMenu(int numItems, const unsigned char *Icons[], const char *Ite
   u8g2.sendBuffer();
 }
 
-void sensorDisplay() {
-  u8g2.clearBuffer();
-  u8g2.setFont(u8g_font_5x8r);
-  u8g2.drawBitmap(0, 0, 128 / 8, 64, epd_bitmap_border);
-  u8g2.drawStr(13, 17, "Voltage");
-  u8g2.drawStr(13, 40, "Current");
-  u8g2.drawStr(85, 17, "Power");
 
-  u8g2.drawStr(20, 27, "12.2");   // Voltage
-  u8g2.drawStr(20, 50, "32.2");   // Current
-  u8g2.drawStr(85, 34, "100.3");  // Power
-
-  u8g2.drawStr(59, 23, "V");  // Voltage
-  u8g2.drawStr(59, 47, "I");  // Voltage
-  u8g2.drawStr(95, 47, "W");  // Voltage
-  u8g2.sendBuffer();
-}
-
-void timerDisplay(DateTime now) {
+void clockDisplay(DateTime now) {
   u8g2.clearBuffer();
 
   char timeString[20];
   char secondString[5];
   char dateString[50];
   char tempString[10];
+  char periodString[6];
+
   float temperature = rtc.getTemperature();
 
 
-  formatDateTime(now, timeString, sizeof(timeString));
+  // formatDateTime(now, timeString, sizeof(timeString));
   dateDisplay(now, dateString, sizeof(dateString));
+  periodDisplay(now, periodString, sizeof(periodString));
 
+  // sprintf(timeString, "%02d:%02d", now.hour(), now.minute());
+  formatDateTime(now, timeString, sizeof(timeString));
   sprintf(secondString, "%02d", now.second());
   dtostrf(temperature, 4, 1, tempString);
 
@@ -477,6 +466,7 @@ void timerDisplay(DateTime now) {
   u8g2.drawStr(20, 33, timeString);
   u8g2.setFont(u8g_font_profont15r);
   u8g2.drawStr(100, 23, secondString);
+  u8g2.drawStr(100, 33, periodString);
   u8g2.setFont(u8g_font_profont12r);
   u8g2.drawStr(12, 8, dateString);
 
@@ -519,6 +509,16 @@ void formatDateTime(DateTime now, char *buffer, size_t bufferSize) {
   }
   snprintf(buffer, bufferSize, "%02d:%02d", hour12, now.minute());
 }
+
+void periodDisplay(DateTime now, char* buffer, size_t bufferSize) {
+  int hour12 = now.hour() % 12;
+  if (hour12 == 0) {
+    hour12 == 0;
+  }
+  const char* period = (now.hour() < 12) ? "AM" : "PM";
+  snprintf(buffer, bufferSize, "%s", period);
+}
+
 
 void dateDisplay(DateTime now, char *buffer, size_t bufferSize) {
   snprintf(buffer, bufferSize, "%s, %02d-%02d-%04d",
@@ -564,39 +564,51 @@ void monitoringDisplay() {
   u8g2.sendBuffer();
 }
 
-// void sensorDisplay() {
-//   float current_mA = 0;
-//   float loadvoltage = 0;
-//   float power_mW = 0;
-//   float shuntvoltage = 0;
-//   float busvoltage = 0;
+void sensorDisplay() {
 
-//   current_mA = ina219.getCurrent_mA();
-//   power_mW = ina219.getPower_mW();
-//   loadvoltage = busvoltage + (shuntvoltage / 1000);
+  unsigned long currentMillis = millis();
 
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
 
-//   u8g2.clearBuffer();
-//   u8g2.setFont(u8g_font_5x8r);
-//   u8g2.drawBitmap(0, 0, 128 / 8, 64, epd_bitmap_border);
-//   u8g2.drawStr(13, 17, "Voltage");
-//   u8g2.drawStr(13, 40, "Current");
-//   u8g2.drawStr(85, 17, "Power");
+    float current_mA = 0;
+    float loadvoltage = 0;
+    float power_mW = 0;
+    float shuntvoltage = 0;
+    float busvoltage = 0;
 
-//   char voltageStr[10];
-//   char currentStr[10];
-//   char powerStr[10];
+    current_mA = ina219.getCurrent_mA() / 1000;
+    power_mW = ina219.getPower_mW() / 1000;
+    shuntvoltage = ina219.getShuntVoltage_mV();
+    busvoltage = ina219.getBusVoltage_V();
+    loadvoltage = busvoltage + (shuntvoltage / 1000);
 
-//   dtostrf(loadvoltage, 5, 2, voltageStr);  // Format: 5 characters total with 2
-//   dtostrf(current_mA, 5, 2, currentStr);
-//   dtostrf(power_mW, 5, 2, powerStr);
+    if (current_mA < 0.01) {
+      current_mA = 0.00;
+    }
 
-//   u8g2.drawStr(20, 27, voltageStr);  // Voltage
-//   u8g2.drawStr(20, 50, currentStr);   // Current
-//   u8g2.drawStr(85, 34, powerStr);     // Power
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g_font_5x8r);
+    u8g2.drawBitmap(0, 0, 128 / 8, 64, epd_bitmap_border);
+    u8g2.drawStr(13, 17, "Voltage");
+    u8g2.drawStr(13, 40, "Current");
+    u8g2.drawStr(85, 17, "Power");
 
-//   u8g2.drawStr(59, 23, "V");   // Voltage
-//   u8g2.drawStr(59, 47, "mA");  // Voltage
-//   u8g2.drawStr(95, 47, "mW");  // Voltage
-//   u8g2.sendBuffer();
-// }
+    char voltageStr[10];
+    char currentStr[10];
+    char powerStr[10];
+
+    dtostrf(loadvoltage, 5, 2, voltageStr);  // Format: 5 characters total with
+    dtostrf(current_mA, 5, 2, currentStr);
+    dtostrf(power_mW, 5, 2, powerStr);
+
+    u8g2.drawStr(20, 27, voltageStr);  // Voltage
+    u8g2.drawStr(20, 50, currentStr);  // Current
+    u8g2.drawStr(85, 34, powerStr);    // Power
+
+    u8g2.drawStr(59, 23, "V");  // Voltage
+    u8g2.drawStr(59, 47, "A");  // Voltage
+    u8g2.drawStr(95, 47, "W");  // Voltage
+    u8g2.sendBuffer();
+  }
+}
