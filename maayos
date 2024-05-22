@@ -4,6 +4,20 @@
 #include "U8g2lib.h"
 #include "RTClib.h"
 #include <Adafruit_INA219.h>
+#include <EEPROM.h>
+
+#define EEPROM_SIZE 512
+
+#define EEPROM_ADDR_HOUR 0
+#define EEPROM_ADDR_MINUTE 1
+#define EEPROM_ADDR_SECOND 2
+#define EEPROM_ADDR_PERIOD 3
+
+#define EEPROM_ADDR_OFFHOUR 4
+#define EEPROM_ADDR_OFFMINUTE 5
+#define EEPROM_ADDR_OFFSECOND 6
+#define EEPROM_ADDR_OFFPERIOD 7
+
 
 RTC_DS3231 rtc;
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0);
@@ -204,6 +218,7 @@ int mainMenuSelection = 0;
 int submenuSelection = 0;
 bool inSubMenu = false;
 bool inLampDisplay = false;
+bool scheduleDisplay = false;
 
 int lastState = LOW;
 int count = 0;
@@ -213,7 +228,24 @@ int count = 0;
 #define ENTER_BUTTON_PIN 18
 #define BACK_BUTTON_PIN 19
 #define SCREEN_BUTTON 5
+//--------------------------------------------------------
+int selectedComponent = 0;
 
+int time_s = 0;
+int time_m = 0;
+int time_h = 0;  // Initialize to a valid 12-hour format
+bool isPM = false;
+
+int startHour;
+int startMinute;
+int startSecond;
+bool startPeriod;  // 0 for AM, 1 for PM
+
+int endHour;
+int endMinute;
+int endSecond;
+bool endPeriod;  // 0 for AM, 1 for PM
+//--------------------------------------------------------
 
 int lampState1 = LOW;
 int lampState2 = LOW;
@@ -282,6 +314,12 @@ void setup() {
     buttons[i]->begin();
     pinMode(relayPin[i], OUTPUT);  // Initialize the relay pins as outputs
   }
+
+  EEPROM.begin(EEPROM_SIZE);
+
+  // Load values from EEPROM
+  loadTimeFromEEPROM();
+  loadOffTimeFromEEPROM();
 }
 
 void loop() {
@@ -510,12 +548,12 @@ void formatDateTime(DateTime now, char *buffer, size_t bufferSize) {
   snprintf(buffer, bufferSize, "%02d:%02d", hour12, now.minute());
 }
 
-void periodDisplay(DateTime now, char* buffer, size_t bufferSize) {
+void periodDisplay(DateTime now, char *buffer, size_t bufferSize) {
   int hour12 = now.hour() % 12;
   if (hour12 == 0) {
     hour12 == 0;
   }
-  const char* period = (now.hour() < 12) ? "AM" : "PM";
+  const char *period = (now.hour() < 12) ? "AM" : "PM";
   snprintf(buffer, bufferSize, "%s", period);
 }
 
