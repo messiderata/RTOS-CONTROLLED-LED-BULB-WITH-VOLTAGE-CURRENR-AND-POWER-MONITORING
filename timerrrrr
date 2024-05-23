@@ -1,0 +1,294 @@
+#include "RTClib.h"
+#include "U8g2lib.h"
+#include <Button.h>
+#include <EEPROM.h>
+#define EEPROM_SIZE 512
+
+#define EEPROM_ADDR_HOUR 0
+#define EEPROM_ADDR_MINUTE 1
+#define EEPROM_ADDR_SECOND 2
+#define EEPROM_ADDR_PERIOD 3
+
+#define EEPROM_ADDR_OFFHOUR 4
+#define EEPROM_ADDR_OFFMINUTE 5
+#define EEPROM_ADDR_OFFSECOND 6
+#define EEPROM_ADDR_OFFPERIOD 7
+
+#define UP_BUTTON_PIN 17
+#define DOWN_BUTTON_PIN 4
+#define ENTER_BUTTON_PIN 18
+#define BACK_BUTTON_PIN 19
+
+Button upButton(UP_BUTTON_PIN);
+Button downButton(DOWN_BUTTON_PIN);
+Button enterButton(ENTER_BUTTON_PIN);
+Button backButton(BACK_BUTTON_PIN);
+
+RTC_DS3231 rtc;
+U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0);
+
+char daysOfTheWeek[7][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+
+unsigned long lastButtonPressTime = 0;
+const unsigned long buttonPressInterval = 200;
+const int ledPin = 2;
+
+int selectedComponent = 0;
+
+int time_s = 0;
+int time_m = 0;
+int time_h = 0;  // Initialize to a valid 12-hour format
+bool isPM = false;
+
+int startHour;
+int startMinute;
+int startSecond;
+bool startPeriod;  // 0 for AM, 1 for PM
+
+int endHour;
+int endMinute;
+int endSecond;
+bool endPeriod;  // 0 for AM, 1 for PM
+
+void setup() {
+  Serial.begin(57600);
+
+  if (!rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    Serial.flush();
+    while (1) delay(10);
+  }
+
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power, let's set the time!");
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  }
+
+  pinMode(ledPin, OUTPUT);
+  upButton.begin();
+  downButton.begin();
+  enterButton.begin();
+  backButton.begin();
+
+  u8g2.setColorIndex(1);  // set the color to white
+  u8g2.begin();
+  u8g2.setBitmapMode(1);
+
+  // Initialize EEPROM
+  EEPROM.begin(EEPROM_SIZE);
+
+  // Load values from EEPROM
+  loadTimeFromEEPROM();
+  loadOffTimeFromEEPROM();
+}
+
+void loop() {
+  DateTime now = rtc.now();
+  ButtonPress();
+  timerSection();
+  timerFunction(now, startHour, startMinute, startSecond, startPeriod, endHour, endMinute, endSecond, endPeriod);
+  loadTimeFromEEPROM();
+  loadOffTimeFromEEPROM();
+}
+
+void timerSection() {
+  u8g2.clearBuffer();
+
+  char hhString[3];
+  char mmString[3];
+  char ssString[3];
+
+  snprintf(hhString, sizeof(hhString), "%02d", time_h);
+  snprintf(mmString, sizeof(mmString), "%02d", time_m);
+  snprintf(ssString, sizeof(ssString), "%02d", time_s);
+
+  u8g2.setFont(u8g_font_courB12);
+  u8g2.drawStr(25, 15, "Schedule");
+  u8g2.setFont(u8g_font_5x8r);
+
+  char timeString[20];
+  snprintf(timeString, sizeof(timeString), "%s : %s : %s %s", hhString, mmString, ssString, isPM ? "PM" : "AM");
+
+  u8g2.drawStr(25, 30, timeString);
+
+  u8g2.drawStr(50, 50, "ON");
+  u8g2.drawStr(63, 50, "/");
+  u8g2.drawStr(70, 50, "OFF");
+
+  int boxX = 29;  // Adjust position based on selected component
+  int boxY = 20;  // Adjust position based on selected component
+  if (selectedComponent == 1) {
+    boxX = 53;
+    // Position for AM/PM
+  }
+  if (selectedComponent == 2) {
+    boxX = 78;  // Position for AM/PM
+  }
+
+  if (selectedComponent == 3) {
+    boxX = 93;  // Position for AM/PM
+  }
+  if (selectedComponent == 4) {
+    boxX = 49;  // Position for AM/PM
+    boxY = 40;
+    if (backButton.pressed()) {
+      // Print the current time
+      Serial.print("Time on: ");
+      Serial.print(time_h);
+      Serial.print(":");
+      Serial.print(time_m);
+      Serial.print(":");
+      Serial.print(time_s);
+      saveOnTimeToEEPROM();
+
+      time_h = 0;
+      time_m = 0;
+      time_s = 0;
+      selectedComponent = 0;
+    }
+  }
+
+  if (selectedComponent == 5) {
+    boxX = 75;  // Position for AM/PM
+    boxY = 40;
+    if (backButton.pressed()) {
+      Serial.print("Time off: ");
+      Serial.print(time_h);
+      Serial.print(":");
+      Serial.print(time_m);
+      Serial.print(":");
+      Serial.print(time_s);
+      saveOffTimeToEEPROM();
+      time_h = 0;
+      time_m = 0;
+      time_s = 0;
+      selectedComponent = 0;
+    }
+  }
+
+  u8g2.setFont(u8g2_font_tiny_simon_tr);
+  u8g2.drawGlyph(boxX, boxY, 0x0076);
+  u8g2.sendBuffer();
+}
+
+void ButtonPress() {
+  if (enterButton.pressed()) {
+    selectedComponent = (selectedComponent + 1) % 6;  // Cycle through components
+  }
+
+  if (downButton.pressed()) {
+    if (selectedComponent == 0) {
+      time_h = (time_h - 1 + 12) % 12;
+      if (time_h == 0) time_h = 12;  // Handle 12-hour wrap around
+    } else if (selectedComponent == 1) {
+      time_m = (time_m + 1) % 60;  // Increment minutes
+    } else if (selectedComponent == 2) {
+      time_s = (time_s + 1) % 60;  // Increment seconds
+    } else if (selectedComponent == 3) {
+      isPM = !isPM;  // Toggle AM/PM
+    }
+  }
+
+  if (upButton.pressed()) {
+    if (selectedComponent == 0) {
+      time_h = (time_h + 1) % 12;
+      if (time_h == 0) time_h = 12;  // Handle 12-hour wrap around
+    } else if (selectedComponent == 1) {
+      time_m = (time_m - 1 + 60) % 60;  // Decrement minutes
+    } else if (selectedComponent == 2) {
+      time_s = (time_s - 1 + 60) % 60;  // Decrement seconds
+    } else if (selectedComponent == 3) {
+      isPM = !isPM;  // Toggle AM/PM
+    }
+  }
+}
+
+void saveOffTimeToEEPROM() {
+  // Save time values to EEPROM for OFF time
+  EEPROM.write(EEPROM_ADDR_OFFHOUR, time_h);
+  EEPROM.write(EEPROM_ADDR_OFFMINUTE, time_m);
+  EEPROM.write(EEPROM_ADDR_OFFSECOND, time_s);
+  EEPROM.write(EEPROM_ADDR_OFFPERIOD, isPM);
+
+  // Commit changes to EEPROM
+  EEPROM.commit();
+}
+
+void saveOnTimeToEEPROM() {
+  // Save time values to EEPROM for ON time
+  EEPROM.write(EEPROM_ADDR_HOUR, time_h);
+  EEPROM.write(EEPROM_ADDR_MINUTE, time_m);
+  EEPROM.write(EEPROM_ADDR_SECOND, time_s);
+  EEPROM.write(EEPROM_ADDR_PERIOD, isPM);
+
+  // Commit changes to EEPROM
+  EEPROM.commit();
+}
+
+void loadOffTimeFromEEPROM() {
+  // Load time values from EEPROM for OFF time
+  endHour = EEPROM.read(EEPROM_ADDR_OFFHOUR);
+  endMinute = EEPROM.read(EEPROM_ADDR_OFFMINUTE);
+  endSecond = EEPROM.read(EEPROM_ADDR_OFFSECOND);
+  endPeriod = EEPROM.read(EEPROM_ADDR_OFFPERIOD);
+
+  // Print loaded values for verification
+  Serial.println("Time OFF loaded from EEPROM:");
+  Serial.println(endHour);
+  Serial.println(endMinute);
+  Serial.println(endSecond);
+  Serial.println(endPeriod ? "PM" : "AM");
+}
+
+void loadTimeFromEEPROM() {
+  // Load time values from EEPROM for ON time
+  startHour = EEPROM.read(EEPROM_ADDR_HOUR);
+  startMinute = EEPROM.read(EEPROM_ADDR_MINUTE);
+  startSecond = EEPROM.read(EEPROM_ADDR_SECOND);
+  startPeriod = EEPROM.read(EEPROM_ADDR_PERIOD);
+
+  // Print loaded values for verification
+  Serial.println("Time ON loaded from EEPROM:");
+  Serial.println(startHour);
+  Serial.println(startMinute);
+  Serial.println(startSecond);
+  Serial.println(startPeriod ? "PM" : "AM");
+}
+
+int convertTo24Hour(int hour, bool isPM) {
+  if (isPM) {
+    return (hour == 12) ? 12 : hour + 12;
+  } else {
+    return (hour == 12) ? 0 : hour;
+  }
+}
+
+void timerFunction(DateTime now, int startHour, int startMinute, int startSecond, bool startPeriod, int endHour, int endMinute, int endSecond, bool endPeriod) {
+  int currentHour = now.hour();
+  int currentMinute = now.minute();
+  int currentSecond = now.second();
+
+  // Convert 12-hour format to 24-hour format
+  int startHour24 = convertTo24Hour(startHour, startPeriod);
+  int endHour24 = convertTo24Hour(endHour, endPeriod);
+
+  int startTotalSeconds = startHour24 * 3600 + startMinute * 60 + startSecond;
+  int endTotalSeconds = endHour24 * 3600 + endMinute * 60 + endSecond;
+  int currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSecond;
+
+  if (startTotalSeconds <= endTotalSeconds) {
+    // Case 1: Start and end are on the same day
+    if (currentTotalSeconds >= startTotalSeconds && currentTotalSeconds <= endTotalSeconds) {
+      digitalWrite(ledPin, HIGH);
+    } else {
+      digitalWrite(ledPin, LOW);
+    }
+  } else {
+    // Case 2: End time is on the next day
+    if (currentTotalSeconds >= startTotalSeconds || currentTotalSeconds <= endTotalSeconds) {
+      digitalWrite(ledPin, HIGH);
+    } else {
+      digitalWrite(ledPin, LOW);
+    }
+  }
+}
