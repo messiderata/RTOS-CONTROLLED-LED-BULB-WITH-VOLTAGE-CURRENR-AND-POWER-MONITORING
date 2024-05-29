@@ -318,7 +318,10 @@ void setup() {
   }
 
   // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-
+  Wire.beginTransmission(0x68);  // address DS3231
+  Wire.write(0x0E);              // select register
+  Wire.write(0b00011100);        // write register bitmap, bit 7 is /EOSC
+  Wire.endTransmission();
 
   while (!Serial) {
     delay(1);
