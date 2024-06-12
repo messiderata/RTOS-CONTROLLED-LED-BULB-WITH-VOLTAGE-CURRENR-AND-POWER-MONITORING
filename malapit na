@@ -12,7 +12,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-
 RTC_DS3231 rtc;
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0);
 Adafruit_INA219 ina219;
@@ -233,13 +232,14 @@ int submenuSelection = 0;
 
 int lastState = LOW;
 int count = 0;
-int controlSwitch = 0;
+int controlSwitch;
 int scrollOffset = 0;       // Offset for scrolling
 const int scrollStep = 10;  // Number of pixels to scroll per step
 
 bool inSubMenu = false;
 bool inLampDisplay = false;
 bool scheduleDisplay = false;
+bool value;
 
 #define UP_BUTTON_PIN 17
 #define DOWN_BUTTON_PIN 4
@@ -457,33 +457,26 @@ void loop() {
   }
 
 
-  if (controlSwitching.pressed()) {
-//    controlSwitch ++;
-    controlSwitch = (controlSwitch == 0) ? 1 : 0;
-
-  }
+  //  if (controlSwitching.pressed()) {
+  //    controlSwitch ++;
+  //
+  //  }
   if (!isPhone) { // Same as if (isPhone == false)
     switch (controlSwitch) {
       case 0:
         manualRelayControl();
         Serial.println("Manual Lamp Control");
         isTimerIsOn = false;
-        
         break;
       case 1:
         timerFunction(now);
         Serial.println("Timer Lamp Control");
-        
         isTimerIsOn = true;
         break;
       default:
         controlSwitch = 0; // Default case to reset controlSwitch to 0
         break;
     }
-  }
-
-  else{
-    
   }
 
   loadLampOffTimeFromEEPROM(lampSelected);
@@ -1283,9 +1276,41 @@ void Task2(void *pvParameters) {
       }
     }
 
-    // Send the updated controlSwitch value back to Firebase
 
-    Firebase.RTDB.setInt(&modeControl, "Control/Settings", controlSwitch);
+    if (Firebase.RTDB.getInt(&modeControl, "Control/InsertTime")) {
+      int state = modeControl.intData(); // Assuming intData() is the correct method to retrieve integer data
+      // Update controlSwitch based on the retrieved state
+      if (state == 1) {
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot1/on/hour")) {
+          int hour1 = modeControl.intData();
+          int addr_hour = EEPROM_ADDR_LAMP1_ON_HOUR + 0 * 8;
+          Serial.println(hour1);
+          EEPROM.write(addr_hour, hour1);
+          EEPROM.commit();
+        }
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot1/on/minute")) {
+          int min1 = modeControl.intData();
+          int addr_minute = EEPROM_ADDR_LAMP1_ON_MINUTE + 0 * 8;
+          Serial.println(min1);
+          EEPROM.write(addr_minute, min1);
+          EEPROM.commit();
+        }
+        bool success = Firebase.RTDB.getBool(&modeControl, "timer/time/slot1/on/period");
+        if (success) {
+          bool per = modeControl.boolData();
+          int addr_period = EEPROM_ADDR_LAMP1_ON_PERIOD + 0 * 8;
+          Serial.println(per ? "true" : "false");
+          if (per == 1) {
+              value = false;
+          }
+          else {
+            value = true;
+          }
+          EEPROM.write(addr_period, value);
+          EEPROM.commit();
+        }
+      }
+    }
     Serial.println("Task 2 is running");
     vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
