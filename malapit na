@@ -404,7 +404,6 @@ void setup() {
   }
   xTaskCreatePinnedToCore(Task1, "Task1", 10000, NULL, 1, &Task1Handle, 0);
   xTaskCreatePinnedToCore(Task2, "Task2", 10000, NULL, 1, &Task2Handle, 1);
-
 }
 
 void loop() {
@@ -453,7 +452,6 @@ void loop() {
         count = 0;
         break;
     }
-
   }
 
 
@@ -461,7 +459,7 @@ void loop() {
   //    controlSwitch ++;
   //
   //  }
-  if (!isPhone) { // Same as if (isPhone == false)
+  if (!isPhone) {  // Same as if (isPhone == false)
     switch (controlSwitch) {
       case 0:
         manualRelayControl();
@@ -474,7 +472,7 @@ void loop() {
         isTimerIsOn = true;
         break;
       default:
-        controlSwitch = 0; // Default case to reset controlSwitch to 0
+        controlSwitch = 0;  // Default case to reset controlSwitch to 0
         break;
     }
   }
@@ -705,14 +703,13 @@ void clockDisplay(DateTime now) {
 
   if (isTimerIsOn == false) {
     u8g2.drawStr(8, 48, "M");
-  }
-  else {
+  } else {
     u8g2.drawStr(8, 48, "T");
   }
   //
   u8g2.drawGlyph(75, 48, 0xB0);  // Display the degree Celsius symbol
 
-  u8g2.drawStr(83, 48, "C");     // Display the degree Celsius symbol
+  u8g2.drawStr(83, 48, "C");  // Display the degree Celsius symbol
   // u8g2.setFont(u8g2_font_open_iconic_all_2x_t);
   if (lampState1 == HIGH) {
     u8g2.drawStr(40, 63, "-");
@@ -1151,7 +1148,7 @@ void sensorData() {
   busvoltage = ina219.getBusVoltage_V();
   loadvoltage = busvoltage + (shuntvoltage / 1000);
 
-  if (current_mA < 0 ) {
+  if (current_mA < 0) {
     current_mA = 0.0;
   }
 }
@@ -1256,29 +1253,29 @@ void Task2(void *pvParameters) {
     }
 
     if (Firebase.RTDB.getInt(&modeControl, "Control/isPhone")) {
-      int state = modeControl.intData(); // Assuming intData() is the correct method to retrieve integer data
+      int state = modeControl.intData();  // Assuming intData() is the correct method to retrieve integer data
       if (state == 0) {
         isPhone = true;
       } else if (state == 1) {
-        Serial.println("IsNotPhoneControl"); // Changed from "IsNotPhoneControl" to "IsNotPhoneControl"
+        Serial.println("IsNotPhoneControl");  // Changed from "IsNotPhoneControl" to "IsNotPhoneControl"
         isPhone = false;
       }
     }
 
     if (Firebase.RTDB.getInt(&modeControl, "Control/Settings")) {
-      int state = modeControl.intData(); // Assuming intData() is the correct method to retrieve integer data
+      int state = modeControl.intData();  // Assuming intData() is the correct method to retrieve integer data
 
       // Update controlSwitch based on the retrieved state
       if (state == 0) {
         controlSwitch = 0;
       } else if (state == 1) {
-        controlSwitch = 1; // Changed from "IsNotPhoneControl" to setting controlSwitch to 1
+        controlSwitch = 1;  // Changed from "IsNotPhoneControl" to setting controlSwitch to 1
       }
     }
 
 
     if (Firebase.RTDB.getInt(&modeControl, "Control/InsertTime")) {
-      int state = modeControl.intData(); // Assuming intData() is the correct method to retrieve integer data
+      int state = modeControl.intData();  // Assuming intData() is the correct method to retrieve integer data
       // Update controlSwitch based on the retrieved state
       if (state == 1) {
         if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot1/on/hour")) {
@@ -1301,10 +1298,208 @@ void Task2(void *pvParameters) {
           int addr_period = EEPROM_ADDR_LAMP1_ON_PERIOD + 0 * 8;
           Serial.println(per ? "true" : "false");
           if (per == 1) {
-              value = false;
-          }
-          else {
+            value = false;
+          } else {
             value = true;
+          }
+          EEPROM.write(addr_period, value);
+          EEPROM.commit();
+        }
+
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot1/off/hour")) {
+          int hour1 = modeControl.intData();
+          int addr_hour = EEPROM_ADDR_LAMP1_OFF_HOUR + 0 * 8;
+          Serial.println(hour1);
+          EEPROM.write(addr_hour, hour1);
+          EEPROM.commit();
+        }
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot1/off/minute")) {
+          int min1 = modeControl.intData();
+          int addr_minute = EEPROM_ADDR_LAMP1_OFF_MINUTE + 0 * 8;
+          Serial.println(min1);
+          EEPROM.write(addr_minute, min1);
+          EEPROM.commit();
+        }
+        bool success1 = Firebase.RTDB.getBool(&modeControl, "timer/time/slot1/off/period");
+        if (success1) {
+          bool per = modeControl.boolData();
+          int addr_period = EEPROM_ADDR_LAMP1_OFF_PERIOD + 0 * 8;
+          Serial.println(per ? "true" : "false");
+          if (per == 1) {
+            value = false;
+          } else {
+            value = true;
+          }
+          EEPROM.write(addr_period, value);
+          EEPROM.commit();
+        }
+        // ??-------------------------------------------------------------------------------------
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot2/on/hour")) {
+          int hour1 = modeControl.intData();
+          int addr_hour = EEPROM_ADDR_LAMP1_ON_HOUR + 1 * 8;
+          Serial.println(hour1);
+          EEPROM.write(addr_hour, hour1);
+          EEPROM.commit();
+        }
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot2/on/minute")) {
+          int min1 = modeControl.intData();
+          int addr_minute = EEPROM_ADDR_LAMP1_ON_MINUTE + 1 * 8;
+          Serial.println(min1);
+          EEPROM.write(addr_minute, min1);
+          EEPROM.commit();
+        }
+        bool success3 = Firebase.RTDB.getBool(&modeControl, "timer/time/slot2/on/period");
+        if (success3) {
+          bool per = modeControl.boolData();
+          int addr_period = EEPROM_ADDR_LAMP1_ON_PERIOD + 1 * 8;
+          Serial.println(per ? "true" : "false");
+          if (per == 1) {
+            value = false;
+          } else {
+            value = true;
+          }
+          EEPROM.write(addr_period, value);
+          EEPROM.commit();
+        }
+
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot2/off/hour")) {
+          int hour2 = modeControl.intData();
+          int addr_hour = EEPROM_ADDR_LAMP1_OFF_HOUR + 1 * 8;
+          Serial.println(hour2);
+          EEPROM.write(addr_hour, hour2);
+          EEPROM.commit();
+        }
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot2/off/minute")) {
+          int min2 = modeControl.intData();
+          int addr_minute = EEPROM_ADDR_LAMP1_OFF_MINUTE + 1 * 8;
+          Serial.println(min2);
+          EEPROM.write(addr_minute, min2);
+          EEPROM.commit();
+        }
+        bool success4 = Firebase.RTDB.getBool(&modeControl, "timer/time/slot2/off/period");
+        if (success4) {
+          bool per = modeControl.boolData();
+          int addr_period = EEPROM_ADDR_LAMP1_OFF_PERIOD + 1 * 8;
+          Serial.println(per ? "true" : "false");
+          if (per == 1) {
+            value = false;
+          } else {
+            value = true;
+          }
+          EEPROM.write(addr_period, value);
+          EEPROM.commit();
+        }
+
+        //------------------------------------------------------------------------------------------------------------------------
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot3/on/hour")) {
+          int hour1 = modeControl.intData();
+          int addr_hour = EEPROM_ADDR_LAMP1_ON_HOUR + 2 * 8;
+          Serial.println(hour1);
+          EEPROM.write(addr_hour, hour1);
+          EEPROM.commit();
+        }
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot3/on/minute")) {
+          int min1 = modeControl.intData();
+          int addr_minute = EEPROM_ADDR_LAMP1_ON_MINUTE + 2 * 8;
+          Serial.println(min1);
+          EEPROM.write(addr_minute, min1);
+          EEPROM.commit();
+        }
+        bool success5 = Firebase.RTDB.getBool(&modeControl, "timer/time/slot3/on/period");
+        if (success5) {
+          bool per = modeControl.boolData();
+          int addr_period = EEPROM_ADDR_LAMP1_ON_PERIOD + 2 * 8;
+          Serial.println(per ? "true" : "false");
+          if (per == 1) {
+            value = true;
+          } else {
+            value = false;
+          }
+          EEPROM.write(addr_period, value);
+          EEPROM.commit();
+        }
+
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot3/off/hour")) {
+          int hour2 = modeControl.intData();
+          int addr_hour = EEPROM_ADDR_LAMP1_OFF_HOUR + 2 * 8;
+          Serial.println(hour2);
+          EEPROM.write(addr_hour, hour2);
+          EEPROM.commit();
+        }
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot3/off/minute")) {
+          int min2 = modeControl.intData();
+          int addr_minute = EEPROM_ADDR_LAMP1_OFF_MINUTE + 2 * 8;
+          Serial.println(min2);
+          EEPROM.write(addr_minute, min2);
+          EEPROM.commit();
+        }
+        bool success6 = Firebase.RTDB.getBool(&modeControl, "timer/time/slot3/off/period");
+        if (success6) {
+          bool per = modeControl.boolData();
+          int addr_period = EEPROM_ADDR_LAMP1_OFF_PERIOD + 2 * 8;
+          Serial.println(per ? "true" : "false");
+          if (per == 1) {
+            value = true;
+          } else {
+            value = false;
+          }
+          EEPROM.write(addr_period, value);
+          EEPROM.commit();
+        }
+
+        //--------------------------------------------------------------------------------------------------------------------------------------------
+
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot4/on/hour")) {
+          int hour1 = modeControl.intData();
+          int addr_hour = EEPROM_ADDR_LAMP1_ON_HOUR + 3 * 8;
+          Serial.println(hour1);
+          EEPROM.write(addr_hour, hour1);
+          EEPROM.commit();
+        }
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot4/on/minute")) {
+          int min1 = modeControl.intData();
+          int addr_minute = EEPROM_ADDR_LAMP1_ON_MINUTE + 3 * 8;
+          Serial.println(min1);
+          EEPROM.write(addr_minute, min1);
+          EEPROM.commit();
+        }
+        bool success7 = Firebase.RTDB.getBool(&modeControl, "timer/time/slot4/on/period");
+        if (success7) {
+          bool per = modeControl.boolData();
+          int addr_period = EEPROM_ADDR_LAMP1_ON_PERIOD + 3 * 8;
+          Serial.println(per ? "true" : "false");
+          if (per == 1) {
+            value = true;
+          } else {
+            value = false;
+          }
+          EEPROM.write(addr_period, value);
+          EEPROM.commit();
+        }
+
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot4/off/hour")) {
+          int hour2 = modeControl.intData();
+          int addr_hour = EEPROM_ADDR_LAMP1_OFF_HOUR + 3 * 8;
+          Serial.println(hour2);
+          EEPROM.write(addr_hour, hour2);
+          EEPROM.commit();
+        }
+        if (Firebase.RTDB.getInt(&modeControl, "timer/time/slot4/off/minute")) {
+          int min2 = modeControl.intData();
+          int addr_minute = EEPROM_ADDR_LAMP1_OFF_MINUTE + 3 * 8;
+          Serial.println(min2);
+          EEPROM.write(addr_minute, min2);
+          EEPROM.commit();
+        }
+        bool success8 = Firebase.RTDB.getBool(&modeControl, "timer/time/slot4/off/period");
+        if (success8) {
+          bool per = modeControl.boolData();
+          int addr_period = EEPROM_ADDR_LAMP1_OFF_PERIOD + 3 * 8;
+          Serial.println(per ? "true" : "false");
+          if (per == 1) {
+            value = true;
+          } else {
+            value = false;
           }
           EEPROM.write(addr_period, value);
           EEPROM.commit();
@@ -1314,5 +1509,4 @@ void Task2(void *pvParameters) {
     Serial.println("Task 2 is running");
     vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
-
 }
